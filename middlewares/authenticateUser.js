@@ -3,20 +3,19 @@ const jwt = require("jsonwebtoken");
 
 const authenticateUser = (req, res, next) => {
   const authHeader = req.headers.authorization;
-  console.log(authHeader);
   if (!authHeader || !authHeader.startsWith("Bearer")) {
-    throw new UnAuthorizedError("UnAuthorized Attempt");
+    throw new UnAuthorizedError("Authentication invalid");
   }
 
   const token = authHeader.split(" ")[1];
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    // req.user = { userId: payload.userId, email: payload.email }
-    console.log("payload", payload);
-    req.user = payload;
+    console.log("payload: ", payload);
+    req.user = payload; // Store payload in req.user
     next();
   } catch (error) {
-    console.log(error);
+    console.error("JWT Verification Error:", error);
+    throw new UnAuthorizedError("Authentication invalid"); // Throw error for proper handling
   }
 };
 

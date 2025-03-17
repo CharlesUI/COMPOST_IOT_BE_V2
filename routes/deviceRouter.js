@@ -2,20 +2,17 @@
 const express = require('express');
 const router = express.Router();
 const { 
-    getRealTimeData, 
-    postRealTimeData, 
-    getSavedTimeFrameData, 
-    postSavedTimeFrameData,
-    addNewDevice // New controller for adding devices
+  getRealTimeData, 
+  updateRealTimeData, // Renamed from postRealTimeData
+  getSavedTimeFrameData, 
+  updateSavedTimeFrameData, // Renamed from postSavedTimeFrameData
 } = require('../controllers/deviceController');
 
-// Route to add a new device
-router.post('/add', addNewDevice);
-
-// Other routes
+// Routes
 router.get('/:deviceNumber/real-time', getRealTimeData);
-router.post('/:deviceNumber/real-time', postRealTimeData);
+router.post('/:deviceNumber/real-time', updateRealTimeData); // Changed to PATCH
+
 router.get('/:deviceNumber/saved-time-frame', getSavedTimeFrameData);
-router.post('/:deviceNumber/saved-time-frame', postSavedTimeFrameData);
+router.post('/:deviceNumber/saved-time-frame', updateSavedTimeFrameData);
 
 module.exports = router;

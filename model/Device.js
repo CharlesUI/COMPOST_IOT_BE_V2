@@ -1,27 +1,22 @@
 const mongoose = require("mongoose");
 
-// Define schema for sensor data parameters
-const sensorDataSchema = new mongoose.Schema(
+const TimeDataSchema = new mongoose.Schema(
   {
-    carbon: Number,
-    phLevel: Number,
-    pressure: Number,
-    gasContent: Number,
-    temperature: Number,
-    humidity: Number,
-    currentFlow: Number,
-    voltageFlow: Number,
-    wattage: Number,
-    timestamp: { type: Date, default: Date.now },
+    batteryPercentage: Number,
+    batteryVoltage: Number,
+    solar: { voltage: Number, current: Number, wattage: Number },
+    teg: { voltage: Number, current: Number, wattage: Number },
+    compostContainerOne: { methane: Number, temperatureIn: Number, temperatureOut: Number, moisture: Number },
+    compostContainerTwo: { methane: Number, temperatureIn: Number, temperatureOut: Number, moisture: Number },
+    timestamp: { type: Date, default: Date.now, index: true }, // Added index
   },
   { _id: false }
 );
 
-// Define schema for each device
 const deviceSchema = new mongoose.Schema({
-  deviceNumber: { type: String, required: true, unique: true }, // Unique identifier for each device
-  realTimeData: sensorDataSchema, // Stores current, frequently updated values
-  savedTimeFrameData: [sensorDataSchema], // Stores historical data for graphing
+  deviceNumber: { type: String, required: true, unique: true, index: true }, // Added index
+  realTimeData: TimeDataSchema,
+  savedTimeFrameData: [TimeDataSchema],
 });
 
 const Device = mongoose.model("Device", deviceSchema);

@@ -1,38 +1,24 @@
 const { StatusCodes } = require("http-status-codes");
 const User = require("../model/User");
-const { BadRequestError, UnAuthorizedError } = require("../errors/ErrorClass");
+const Device = require("../model/Device");
+const {
+  BadRequestError,
+  UnAuthorizedError,
+  NotFoundError,
+} = require("../errors/ErrorClass");
 
 const register = async (req, res) => {
+  const { username, email, password } = req.body;
+
   try {
-    const { username, email, password } = req.body;
-
-    console.log("Registering user with email:", email);
-
-    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      console.log("User already exists with this email:", email);
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ message: "User with this email already exists" });
+      throw new BadRequestError("User with this email already exists");
     }
 
-    // Create new user
-    const user = new User({
-      username,
-      email,
-      password, // Save the hashed password
-    });
-
-    await user.save();
-    console.log("User saved successfully:", user._id);
-    console.log("User saved successfully:", user.password);
-
-    // Create token (ensure createToken is defined in User model)
+    const user = await User.create({ username, email, password });
     const token = user.createToken();
-    console.log("Token created successfully for user:", user._id);
 
-    // Send response
     res.status(StatusCodes.CREATED).json({
       token,
       _id: user._id,
@@ -40,11 +26,16 @@ const register = async (req, res) => {
       email: user.email,
     });
   } catch (error) {
-    console.error("Registration error:", error); // Log the exact error
-
-    res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({ message: "Server error", error: error.message }); // Send error details in response
+    console.error("Registration error:", error);
+    if (error.name === "ValidationError") {
+      const errorMessages = Object.values(error.errors).map(
+        (err) => err.message
+      );
+      throw new BadRequestError(
+        `Validation failed: ${errorMessages.join(", ")}`
+      );
+    }
+    throw error;
   }
 };
 
@@ -52,43 +43,143 @@ const login = async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    throw new BadRequestError("Fill out all the necessary fields...");
+    throw new BadRequestError("Please provide email and password");
   }
 
-  console.log("checking email...");
   const user = await User.findOne({ email });
   if (!user) {
-    throw new UnAuthorizedError("User not found");
+    throw new UnAuthorizedError("Invalid credentials");
   }
 
-  console.log("checking password...");
-
-  //Check the password if the admin username is found on the database
   const isPasswordCorrect = await user.isMatch(password);
-  console.log(isPasswordCorrect);
   if (!isPasswordCorrect) {
-    throw new UnAuthorizedError("Incorrect Password");
+    throw new UnAuthorizedError("Invalid credentials");
   }
 
   const token = user.createToken();
 
-  console.log("logging in...");
-
   res.status(StatusCodes.OK).json({
     token,
-    ...{
-      _id: user._id,
-      username: user.username,
-      email: user.email,
-    },
+    _id: user._id,
+    username: user.username,
+    email: user.email,
+    devices: user.devices,
   });
 };
 
-const getUsers = async (req, res) => {};
+const getUsers = async (req, res) => {
+  try {
+    const users = await User.find().select("-password"); // Exclude passwords
+    res.status(StatusCodes.OK).json({ users });
+  } catch (error) {
+    console.error("Get users error:", error);
+    throw error;
+  }
+};
 
-const updateUser = async (req, res) => {};
+const updateUser = async (req, res) => {
+  const { userId } = req.user; // Get userId from authenticated user
+  const { username, email } = req.body;
 
-const deleteUser = async (req, res) => {};
+  try {
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { username, email },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!user) {
+      throw new NotFoundError(`No user with id : ${userId}`);
+    }
+
+    res.status(StatusCodes.OK).json({ user });
+  } catch (error) {
+    console.error("Update user error:", error);
+    if (error.name === "ValidationError") {
+      const errorMessages = Object.values(error.errors).map(
+        (err) => err.message
+      );
+      throw new BadRequestError(
+        `Validation failed: ${errorMessages.join(", ")}`
+      );
+    }
+    throw error;
+  }
+};
+
+const deleteUser = async (req, res) => {
+  const { userId } = req.user;
+
+  try {
+    const user = await User.findByIdAndDelete(userId);
+
+    if (!user) {
+      throw new NotFoundError(`No user with id : ${userId}`);
+    }
+
+    res.status(StatusCodes.OK).json({ message: "User deleted successfully" });
+  } catch (error) {
+    console.error("Delete user error:", error);
+    throw error;
+  }
+};
+
+const addDevice = async (req, res) => {
+  console.log(req.body)
+  const { deviceNumber, userId } = req.body;
+
+  if (!deviceNumber) {
+    throw new BadRequestError("Device number is required");
+  }
+
+  // Validate the device number pattern
+  const pattern = /^CMPST[A-Z0-9]{5}$/;
+  if (!pattern.test(deviceNumber)) {
+    throw new BadRequestError("Invalid device number pattern. Must be CMPST*****");
+  }
+
+  try {
+    const device = await Device.findOne({ deviceNumber });
+    if (!device) {
+      throw new NotFoundError(`Device with number ${deviceNumber} not found`);
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new NotFoundError(`User with id ${userId} not found`);
+    }
+
+    if (user.devices.includes(deviceNumber)) {
+      throw new BadRequestError("Device already added to user");
+    }
+
+    user.devices.push(deviceNumber);
+    await user.save();
+
+    res.status(StatusCodes.OK).json({ message: "Device added successfully" });
+  } catch (error) {
+    console.error("Add device error:", error);
+    throw error;
+  }
+};
+
+const clearDevices = async (req, res) => {
+  console.log("Headers:", req.headers);
+  console.log("Body:", req.body);
+  const { userId } = req.body;
+
+  console.log("USER ID", req.body)
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new UnAuthorizedError('Invalid credentials');
+  }
+
+  user.devices = []; // Clear the devices array
+  await user.save();
+
+  res.status(StatusCodes.OK).json({ user }); // Send back the updated user object
+};
 
 module.exports = {
   register,
@@ -96,4 +187,6 @@ module.exports = {
   getUsers,
   deleteUser,
   updateUser,
+  addDevice,
+  clearDevices,
 };
