@@ -10,6 +10,8 @@ const {
 const register = async (req, res) => {
   const { username, email, password } = req.body;
 
+  console.log("Register body", req.body);
+
   try {
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -41,6 +43,8 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   const { email, password } = req.body;
+
+  console.log("Login body", req.body);
 
   if (!email || !password) {
     throw new BadRequestError("Please provide email and password");

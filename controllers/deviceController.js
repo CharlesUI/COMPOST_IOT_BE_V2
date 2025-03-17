@@ -27,6 +27,7 @@ const updateRealTimeData = async (req, res) => {
       sensorData.timestamp = new Date().toISOString();
     }
 
+    console.log(sensorData);
     // Update realTimeData with incoming sensor data
     device.realTimeData = sensorData;
 
@@ -91,8 +92,8 @@ const getSavedTimeFrameData = async (req, res) => {
     throw new BadRequestError("Time frame (day, week, month) is required");
   }
 
-  if (!dataType || !["energy", "compost"].includes(dataType)) {
-    throw new BadRequestError("Data type (energy, compost) is required");
+  if (!dataType || !["energy", "solar", "compost"].includes(dataType)) {
+    throw new BadRequestError("Data type (energy, solar, compost) is required");
   }
 
   if (
@@ -139,18 +140,17 @@ const getSavedTimeFrameData = async (req, res) => {
       .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)); // Sort by timestamp
 
     const processedData = {};
-    let dataSet1Name, dataSet2Name;
 
     if (dataType === "energy") {
-      dataSet1Name = "solar";
-      dataSet2Name = "teg";
+      processedData["tegOne"] = [];
+      processedData["tegTwo"] = [];
+      processedData["solar"] = []; // Initialize solar data array
+    } else if (dataType ===  "solar") {
+      processedData["solar"] = [];
     } else {
-      dataSet1Name = "compostContainerOne";
-      dataSet2Name = "compostContainerTwo";
+      processedData["compostContainerOne"] = [];
+      processedData["compostContainerTwo"] = [];
     }
-
-    processedData[dataSet1Name] = [];
-    processedData[dataSet2Name] = [];
 
     let currentTime = startTime.getTime();
     let previousDay = null; // Keep track of the previous day
@@ -185,31 +185,90 @@ const getSavedTimeFrameData = async (req, res) => {
           return "";
         };
 
-        if (
-          lastDataPoint[dataSet1Name] &&
-          lastDataPoint[dataSet1Name][parameter] !== null &&
-          lastDataPoint[dataSet1Name][parameter] !== undefined
-        ) {
-          processedData[dataSet1Name].push({
-            timestamp: lastDataPoint.timestamp,
-            value: lastDataPoint[dataSet1Name][parameter],
-            label: formatLabel(timestamp),
-            batteryPercentage: lastDataPoint.batteryPercentage,
-            batteryVoltage: lastDataPoint.batteryVoltage,
-          });
-        }
-        if (
-          lastDataPoint[dataSet2Name] &&
-          lastDataPoint[dataSet2Name][parameter] !== null &&
-          lastDataPoint[dataSet2Name][parameter] !== undefined
-        ) {
-          processedData[dataSet2Name].push({
-            timestamp: lastDataPoint.timestamp,
-            value: lastDataPoint[dataSet2Name][parameter],
-            label: formatLabel(timestamp),
-            batteryPercentage: lastDataPoint.batteryPercentage,
-            batteryVoltage: lastDataPoint.batteryVoltage,
-          });
+        if (dataType === "energy") {
+          // Process solar data
+          if (
+            lastDataPoint.solar &&
+            lastDataPoint.solar[parameter] !== null &&
+            lastDataPoint.solar[parameter] !== undefined
+          ) {
+            processedData["solar"].push({
+              timestamp: lastDataPoint.timestamp,
+              value: lastDataPoint.solar[parameter],
+              label: formatLabel(timestamp),
+              batteryPercentage: lastDataPoint.batteryPercentage,
+              batteryVoltage: lastDataPoint.batteryVoltage,
+            });
+          }
+          // Process tegOne data
+          if (
+            lastDataPoint.compostContainerOne?.tegOne &&
+            lastDataPoint.compostContainerOne.tegOne[parameter] !== null &&
+            lastDataPoint.compostContainerOne.tegOne[parameter] !== undefined
+          ) {
+            processedData["tegOne"].push({
+              timestamp: lastDataPoint.timestamp,
+              value: lastDataPoint.compostContainerOne.tegOne[parameter],
+              label: formatLabel(timestamp),
+              batteryPercentage: lastDataPoint.batteryPercentage,
+              batteryVoltage: lastDataPoint.batteryVoltage,
+            });
+          }
+          // Process tegTwo data
+          if (
+            lastDataPoint.compostContainerTwo?.tegTwo &&
+            lastDataPoint.compostContainerTwo.tegTwo[parameter] !== null &&
+            lastDataPoint.compostContainerTwo.tegTwo[parameter] !== undefined
+          ) {
+            processedData["tegTwo"].push({
+              timestamp: lastDataPoint.timestamp,
+              value: lastDataPoint.compostContainerTwo.tegTwo[parameter],
+              label: formatLabel(timestamp),
+              batteryPercentage: lastDataPoint.batteryPercentage,
+              batteryVoltage: lastDataPoint.batteryVoltage,
+            });
+          }
+        } else if (dataType === "solar") {
+          if (
+            lastDataPoint.solar &&
+            lastDataPoint.solar[parameter] !== null &&
+            lastDataPoint.solar[parameter] !== undefined
+          ) {
+            processedData["solar"].push({
+              timestamp: lastDataPoint.timestamp,
+              value: lastDataPoint.solar[parameter],
+              label: formatLabel(timestamp),
+              batteryPercentage: lastDataPoint.batteryPercentage,
+              batteryVoltage: lastDataPoint.batteryVoltage,
+            });
+          }
+        } else {
+          if (
+            lastDataPoint.compostContainerOne &&
+            lastDataPoint.compostContainerOne[parameter] !== null &&
+            lastDataPoint.compostContainerOne[parameter] !== undefined
+          ) {
+            processedData["compostContainerOne"].push({
+              timestamp: lastDataPoint.timestamp,
+              value: lastDataPoint.compostContainerOne[parameter],
+              label: formatLabel(timestamp),
+              batteryPercentage: lastDataPoint.batteryPercentage,
+              batteryVoltage: lastDataPoint.batteryVoltage,
+            });
+          }
+          if (
+            lastDataPoint.compostContainerTwo &&
+            lastDataPoint.compostContainerTwo[parameter] !== null &&
+            lastDataPoint.compostContainerTwo[parameter] !== undefined
+          ) {
+            processedData["compostContainerTwo"].push({
+              timestamp: lastDataPoint.timestamp,
+              value: lastDataPoint.compostContainerTwo[parameter],
+              label: formatLabel(timestamp),
+              batteryPercentage: lastDataPoint.batteryPercentage,
+              batteryVoltage: lastDataPoint.batteryVoltage,
+            });
+          }
         }
 
         previousDay = currentDay; // Update the previous day

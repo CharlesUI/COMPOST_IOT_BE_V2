@@ -10,7 +10,7 @@ const {
 
 // Routes
 router.get('/:deviceNumber/real-time', getRealTimeData);
-router.post('/:deviceNumber/real-time', updateRealTimeData); // Changed to PATCH
+router.post('/:deviceNumber/real-time', updateRealTimeData);
 
 router.get('/:deviceNumber/saved-time-frame', getSavedTimeFrameData);
 router.post('/:deviceNumber/saved-time-frame', updateSavedTimeFrameData);
