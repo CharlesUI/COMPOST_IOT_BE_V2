@@ -1,123 +1,336 @@
-const { StatusCodes } = require("http-status-codes");
+const User = require("../model/User"); // Assuming the User model is in the models directory
+const Device = require("../model/Device"); // Assuming the Device model is in the models directory
 const Admin = require("../model/Admin");
-const { BadRequestError, UnAuthorizedError } = require("../errors/ErrorClass");
-const bcrypt = require("bcryptjs");
+const Notification = require("../model/Notification");
 
-const register = async (req, res) => {
-  //Create using admin model
-  const admin = await Admin.create(req.body);
+const adminController = {
+  // --- Admin Log Reg
+  adminRegister: async (req, res) => {
+    try {
+      const { username, email, password, title } = req.body;
 
-  //After registration, create a token
-  const token = admin.createToken();
+      // Check if email already exists
+      const existingAdmin = await Admin.findOne({ email });
+      if (existingAdmin) {
+        return res.status(400).json({
+          success: false,
+          message: "Admin email is already registered",
+        });
+      }
 
-  res.status(StatusCodes.OK).json({
-    username: admin.username,
-    firstName: admin.firstName,
-    lastName: admin.lastName,
-    email: admin.email,
-    contactNumber: admin.contactNumber,
-    role: admin.role,
-  });
-  // .json({ token, ...{ email: admin.email, adminUser: admin.username } });
-};
-const login = async (req, res) => {
-  const { username, password } = req.body;
+      // Create new admin
+      const newAdmin = new Admin({ username, email, password, title });
+      await newAdmin.save();
 
-  if (!username || !password) {
-    throw new BadRequestError("Fill out all the necessary fields...");
+      // Fetch all existing users
+      const allUsers = await User.find({}, "_id"); // Only fetch the _id
+
+      // Fetch all existing devices
+      const allDevices = await Device.find({}, "_id"); // Only fetch the _id
+
+      // Update the newly created admin to include all existing users and devices
+      newAdmin.managedUsers = allUsers.map((user) => user._id);
+      newAdmin.managedDevices = allDevices.map((device) => device._id);
+      await newAdmin.save();
+
+      // Generate JWT token
+      const token = newAdmin.createToken();
+
+      res.status(201).json({
+        success: true,
+        message: "Admin registered successfully",
+        token,
+        admin: {
+          id: newAdmin._id,
+          username: newAdmin.username,
+          email: newAdmin.email,
+          title: newAdmin.title,
+          managedUsers: newAdmin.managedUsers,
+          managedDevices: newAdmin.managedDevices,
+        },
+      });
+    } catch (error) {
+      console.error("Error registering admin:", error);
+      if (error.name === "ValidationError") {
+        const errors = Object.values(error.errors).map((el) => el.message);
+        return res
+          .status(400)
+          .json({ success: false, message: "Validation error", errors });
+      }
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to register admin" });
+    }
+  },
+
+  // Admin Login (No changes needed here for this specific request)
+  adminLogin: async (req, res) => {
+    try {
+      const { username, password } = req.body;
+
+      console.log({ username, password });
+      // Check if username exists
+      const admin = await Admin.findOne({ username });
+      if (!admin) {
+        return res
+          .status(401)
+          .json({ success: false, message: "Invalid admin credentials" });
+      }
+
+      // Compare passwords
+      const isPasswordMatch = await admin.isMatch(password);
+      if (!isPasswordMatch) {
+        return res
+          .status(401)
+          .json({ success: false, message: "Invalid admin credentials" });
+      }
+
+      // Generate JWT token
+      const token = admin.createToken();
+
+      res.status(200).json({
+        success: true,
+        message: "Admin logged in successfully",
+        token,
+        admin: {
+          _id: admin._id,
+          username: admin.username,
+          email: admin.email,
+          title: admin.title,
+          managedUsers: admin.managedUsers,
+          managedDevices: admin.managedDevices,
+        },
+      });
+    } catch (error) {
+      console.error("Error logging in admin:", error);
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to login admin" });
+    }
+  },
+
+  // --- User Management ---
+
+getSpecificUsersPerDevice: async (req, res) => {
+  try {
+    const deviceId = req.params.deviceId;
+
+    // Find all users whose 'devices' array contains the deviceId
+    const users = await User.find({ devices: deviceId });
+
+    if (!users || users.length === 0) {
+      return res.status(200).json({ users }); // Return an empty array if no users are found for the device
+    }
+
+    // Extract the usernames of the users
+    const currentUsers = users.map(user => user.username);
+
+    res.status(200).json({ users: currentUsers });
+
+  } catch (error) {
+    console.error("Error fetching users for device:", error);
+    res.status(500).json({ message: "Failed to fetch users for device" });
   }
+},
+  // Get all users (for admin management)
+  getAllUsersForAdmin: async (req, res) => {
+    try {
+      const users = await User.find();
+      res.status(200).json({ success: true, count: users.length, users });
+    } catch (error) {
+      console.error("Error fetching all users for admin:", error);
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to fetch users" });
+    }
+  },
 
-  const admin = await Admin.findOne({ username });
-  if (!admin) {
-    throw new UnAuthorizedError("User not Authorized");
-  }
+  // Get a specific user by ID
+  getUser: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = await User.findById(id);
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
+      }
+      res.status(200).json({ success: true, user });
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      if (error.kind === "ObjectId") {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid user ID format" });
+      }
+      res.status(500).json({ success: false, message: "Failed to fetch user" });
+    }
+  },
 
-  //Check the password if the admin username is found on the database
-  const isPasswordCorrect = await admin.isMatch(password);
-  if (!isPasswordCorrect) {
-    throw new UnAuthorizedError("User not Authorized");
-  }
+  // Update user information by ID
+  updateUser: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { username, email, devices } = req.body;
 
-  const token = admin.createToken();
+      const updatedUser = await User.findByIdAndUpdate(
+        id,
+        { username, email, devices },
+        { new: true, runValidators: true }
+      );
 
-  res.status(StatusCodes.OK).json({
-    token,
-    ...{
-      _id: admin._id,
-      username: admin.username,
-      firstName: admin.firstName,
-      lastName: admin.lastName,
-      email: admin.email,
-      contactNumber: admin.contactNumber,
-      role: admin.role,
-      scheduleDate: admin.scheduleDate,
-      availableTime: admin.availableTime,
-    },
-  });
+      if (!updatedUser) {
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
+      }
+
+      res.status(200).json({ success: true, user: updatedUser });
+    } catch (error) {
+      console.error("Error updating user:", error);
+      if (error.kind === "ObjectId") {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid user ID format" });
+      }
+      if (error.name === "ValidationError") {
+        const errors = Object.values(error.errors).map((el) => el.message);
+        return res
+          .status(400)
+          .json({ success: false, message: "Validation error", errors });
+      }
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to update user" });
+    }
+  },
+
+  // Delete a user by ID
+  deleteUser: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deletedUser = await User.findByIdAndDelete(id);
+      if (!deletedUser) {
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
+      }
+      res
+        .status(200)
+        .json({ success: true, message: "User deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      if (error.kind === "ObjectId") {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid user ID format" });
+      }
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to delete user" });
+    }
+  },
+
+  // Send notification to a specific user
+  sendNotificationToUser: async (req, res) => {
+    try {
+      console.log(req.body);
+      console.log(req.params);
+      const { id: userId } = req.params; // Renamed id to userId for clarity
+      const { message } = req.body;
+      const { level = "info" } = req.body; // Optional: Allow admin to set notification level
+
+      const user = await User.findById(userId);
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
+      }
+
+      const newNotification = new Notification({
+        userId: userId,
+        message: message,
+        level: level, // Use the provided level or default to "info"
+      });
+      await newNotification.save();
+
+      res
+        .status(200)
+        .json({
+          success: true,
+          message: `Notification sent to ${user.username}`,
+        });
+    } catch (error) {
+      console.error("Error sending notification:", error);
+      if (error.kind === "ObjectId") {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid user ID format" });
+      }
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to send notification" });
+    }
+  },
+
+  // --- Device Management ---
+
+  // Get all devices
+  getAllDevices: async (req, res) => {
+    try {
+      const devices = await Device.find();
+      res.status(200).json(devices);
+    } catch (error) {
+      console.error("Error fetching devices:", error);
+      res.status(500).json({ message: "Failed to fetch devices" });
+    }
+  },
+
+  addDevice: async (req, res) => {
+    try {
+      const { deviceNumber } = req.body;
+      if (!deviceNumber) {
+        return res.status(400).json({ message: "Device number is required" });
+      }
+      const existingDevice = await Device.findOne({ deviceNumber });
+      if (existingDevice) {
+        return res
+          .status(409)
+          .json({ message: "Device with this number already exists" });
+      }
+      const newDevice = new Device({ deviceNumber });
+      await newDevice.save();
+      res
+        .status(201)
+        .json({ message: "Device added successfully", device: newDevice });
+    } catch (error) {
+      console.error("Error adding device:", error);
+      if (error.code === 11000) {
+        return res
+          .status(409)
+          .json({ message: "Device with this number already exists" });
+      }
+      res.status(500).json({ message: "Failed to add device" });
+    }
+  },
+
+  deleteDevice: async (req, res) => {
+    try {
+      const { deviceId } = req.params;
+      console.log(deviceId);
+      const deletedDevice = await Device.findByIdAndDelete(deviceId);
+      if (!deletedDevice) {
+        return res.status(404).json({ message: "Device not found" });
+      }
+      res.status(200).json({ message: "Device deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting device:", error);
+      if (error.kind === "ObjectId") {
+        return res.status(400).json({ message: "Invalid device ID format" });
+      }
+      res.status(500).json({ message: "Failed to delete device" });
+    }
+  },
 };
 
-const getAdmins = async (req, res) => {
-  const adminList = await Admin.find({});
-
-  res.status(StatusCodes.OK).json(adminList);
-};
-
-const deleteAdmin = async (req, res) => {
-  const { id: adminId } = req.params;
-
-  const deleteAdmin = await Admin.findOneAndDelete({ _id: adminId });
-
-  if (!deleteAdmin) {
-    throw new NotFoundError("Admin does not exist...");
-  }
-
-  const updatedAdminList = await Admin.find({});
-
-  res.status(StatusCodes.OK).json({ updatedAdminList });
-};
-
-const updateAdmin = async (req, res) => {
-  const { id: adminId } = req.params;
-  const { body } = req;
-
-  const updateFields = {};
-
-  // {"username":"salmonela","firstName":"Sallyfghsdgfsdg","lastName":"Doe","contactNumber":"+639270298872","scheduleDate":"T - TH","availableTime":"6AM - 6PM","email":"sdfasdfas@gmail.com","password":"","role":"admin"}
-
-  if (body.username) updateFields.username = body.username;
-  if (body.firstName) updateFields.firstName = body.firstName;
-  if (body.lastName) updateFields.lastName = body.lastName;
-  if (body.email) updateFields.email = body.email;
-  if (body.role) updateFields.role = body.role;
-  if (body.contactNumber) updateFields.contactNumber = body.contactNumber;
-  if (body.scheduleDate) updateFields.scheduleDate = body.scheduleDate;
-  if (body.availableTime) updateFields.availableTime = body.availableTime;
-
-  if (body.password) {
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(body.password, salt);
-    updateFields.password = hashedPassword;
-  }
-
-  const updatedAdmin = await Admin.findOneAndUpdate(
-    { _id: adminId },
-    { $set: updateFields },
-    { new: true, runValidators: true }
-  );
-
-  if (!updatedAdmin) {
-    throw new NotFoundError("Admin does not exist...");
-  }
-
-  const updatedAdminList = await Admin.find({});
-  console.log("updated", updatedAdminList);
-  res.status(StatusCodes.OK).json(updatedAdminList);
-};
-
-module.exports = {
-  register,
-  login,
-  getAdmins,
-  deleteAdmin,
-  updateAdmin,
-};
+module.exports = adminController;

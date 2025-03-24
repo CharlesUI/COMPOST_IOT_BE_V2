@@ -1,77 +1,53 @@
 const bcrypt = require("bcryptjs");
-const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 
-const AdminSchema = new mongoose.Schema(
+const adminSchema = new mongoose.Schema(
   {
-    username: {
-      type: String,
-      required: [true, "Fill out the username"],
-      minlength: 4,
-      maxlength: 20,
-      unique: true,
-    },
-    firstName: {
-      type: String,
-      required: [true, "Fill out the first name"],
-      maxlength: 20,
-    },
-    lastName: {
-      type: String,
-      required: [true, "Fill out the last name"],
-      maxlength: 20,
-    },
+    username: { type: String, required: true, unique: true },
     email: {
       type: String,
-      required: [true, "Fill out the email field"],
-      match: [
-        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
-        "Fill out email field",
-      ],
+      required: true,
       unique: true,
+      match: [
+        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[{1,3}\.{1,3}\.{1,3}\.{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
+        "Please provide a valid email",
+      ],
     },
-    role: {
-      type: String,
-      required: [true, "Fill out the role"],
-      enum: ["super_admin" , "admin"],
-      default: "admin",
-    },
-    contactNumber: {
-      type: String,
-      required: [true, "Fill out the contact number"],
-      maxlength: 15
-    },
-    password: {
-      type: String,
-      required: [true, "Fill out the password field"],
-      minlength: 8,
-    }
+    title: { type: String, required: true }, // Added title field
+    password: { type: String, required: true },
+    managedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Reference to User model
+    managedDevices: [{ type: mongoose.Schema.Types.ObjectId, ref: "Device" }], // Reference to Device model
   },
   { timestamps: true }
 );
 
-//PRE MIDDLEWARE BEFORE REGISTERING NEW ADMIN
-AdminSchema.pre("save", async function (next) {
+adminSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) {
+    return next();
+  }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
   next();
 });
 
-//Methods for creating a token
-AdminSchema.methods.createToken = function () {
-  const token = jwt.sign(
-    { adminId: this._id, username: this.username },
+adminSchema.methods.createToken = function () {
+  return jwt.sign(
+    { adminId: this._id, email: this.email },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_LIFETIME }
   );
-  return token
 };
 
-AdminSchema.methods.isMatch = async function(reqPassword) {
-    const isCorrect = await bcrypt.compare(reqPassword, this.password)
-    return isCorrect
-}
+adminSchema.methods.isMatch = async function (reqPassword) {
+  try {
+    return await bcrypt.compare(reqPassword, this.password);
+  } catch (error) {
+    console.error("Password comparison error:", error);
+    return false; // Or throw an error if needed
+  }
+};
 
-const AdminModel = mongoose.model("Admin", AdminSchema);
+const Admin = mongoose.model("Admin", adminSchema);
 
-module.exports = AdminModel;
+module.exports = Admin;

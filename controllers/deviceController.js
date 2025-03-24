@@ -1,5 +1,6 @@
 const { StatusCodes } = require("http-status-codes");
 const Device = require("../model/Device");
+const Notification = require("../model/Notification"); // Import the Notification model
 const { BadRequestError, NotFoundError } = require("../errors/ErrorClass");
 const { format, startOfDay } = require("date-fns");
 
@@ -7,6 +8,7 @@ const updateRealTimeData = async (req, res) => {
   const { deviceNumber } = req.params;
   const sensorData = req.body;
 
+  console.log(sensorData);
   if (!sensorData) {
     throw new BadRequestError("Sensor data is required");
   }
@@ -32,7 +34,6 @@ const updateRealTimeData = async (req, res) => {
     device.realTimeData = sensorData;
 
     // Determine if we should also add to savedTimeFrameData
-    // Find the most recent savedTimeFrameData entry
     const latestEntry =
       device.savedTimeFrameData.length > 0
         ? device.savedTimeFrameData[device.savedTimeFrameData.length - 1]
@@ -57,6 +58,138 @@ const updateRealTimeData = async (req, res) => {
 
     await device.save();
 
+    // --- Notification Logic ---
+    const { batteryPercentage } = sensorData;
+    const { compostContainerOne, compostContainerTwo } = sensorData;
+
+    // --- Battery Notifications ---
+    if (batteryPercentage < 10) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "danger",
+        message: `Device ${deviceNumber}: Battery level critically low (${batteryPercentage}%). This may cause the device to stop functioning soon. Please recharge immediately.`,
+      });
+    } else if (batteryPercentage < 30) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "warning",
+        message: `Device ${deviceNumber}: Battery level is low (${batteryPercentage}%). It's advisable to recharge soon to ensure continuous operation.`,
+      });
+    } else if (batteryPercentage > 80) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "good",
+        message: `Device ${deviceNumber}: Battery level is good (${batteryPercentage}%).`,
+      });
+    }
+
+    // --- Methane Notifications (Compost Container One) ---
+    if (compostContainerOne?.methane > 70) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "danger",
+        message: `Device ${deviceNumber}: High methane level detected in Compost Container One (${compostContainerOne.methane}%). This often indicates anaerobic conditions due to excessive moisture or compaction, potentially leading to foul odors. Turning the compost pile might be necessary.`,
+      });
+    } else if (compostContainerOne?.methane > 50) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "warning",
+        message: `Device ${deviceNumber}: Elevated methane level in Compost Container One (${compostContainerOne.methane}%). This could suggest an imbalance in the composting process. Ensure good airflow and consider adding more carbon-rich materials.`,
+      });
+    } else if (compostContainerOne?.methane < 5) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "warning",
+        message: `Device ${deviceNumber}: Low methane level in Compost Container One (${compostContainerOne.methane}%) might indicate the composting process has significantly slowed down or is too dry. Check moisture levels and material balance.`,
+      });
+    } else if (compostContainerOne?.methane >= 5 && compostContainerOne?.methane <= 40) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "good",
+        message: `Device ${deviceNumber}: Methane level in Compost Container One is within a good range (${compostContainerOne.methane}%), indicating healthy aerobic decomposition.`,
+      });
+    }
+
+    // --- Methane Notifications (Compost Container Two) ---
+    if (compostContainerTwo?.methane > 70) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "danger",
+        message: `Device ${deviceNumber}: High methane level detected in Compost Container Two (${compostContainerTwo.methane}%). This often indicates anaerobic conditions due to excessive moisture or compaction, potentially leading to foul odors. Turning the compost pile might be necessary.`,
+      });
+    } else if (compostContainerTwo?.methane > 50) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "warning",
+        message: `Device ${deviceNumber}: Elevated methane level in Compost Container Two (${compostContainerTwo.methane}%). This could suggest an imbalance in the composting process. Ensure good airflow and consider adding more carbon-rich materials.`,
+      });
+    } else if (compostContainerTwo?.methane < 5) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "warning",
+        message: `Device ${deviceNumber}: Low methane level in Compost Container Two (${compostContainerTwo.methane}%) might indicate the composting process has significantly slowed down or is too dry. Check moisture levels and material balance.`,
+      });
+    } else if (compostContainerTwo?.methane >= 5 && compostContainerTwo?.methane <= 40) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "good",
+        message: `Device ${deviceNumber}: Methane level in Compost Container Two is within a good range (${compostContainerTwo.methane}%), indicating healthy aerobic decomposition.`,
+      });
+    }
+
+    // --- Moisture Notifications (Compost Container One) ---
+    if (compostContainerOne?.moisture > 80) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "danger",
+        message: `Device ${deviceNumber}: Excessive moisture detected in Compost Container One (${compostContainerOne.moisture}%). This can lead to anaerobic conditions, slow down decomposition, and cause unpleasant smells. Consider adding dry materials like shredded paper or cardboard.`,
+      });
+    } else if (compostContainerOne?.moisture < 30) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "danger",
+        message: `Device ${deviceNumber}: Very low moisture level detected in Compost Container One (${compostContainerOne.moisture}%). Decomposition relies on moisture; the process might significantly slow down or halt. Add some water or moist materials like fruit and vegetable scraps.`,
+      });
+    } else if (compostContainerOne?.moisture > 65 || compostContainerOne?.moisture < 40) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "warning",
+        message: `Device ${deviceNumber}: Moisture level in Compost Container One is approaching suboptimal levels (${compostContainerOne.moisture}%). The ideal moisture is like a wrung-out sponge. Monitor and adjust as needed by adding dry or wet materials.`,
+      });
+    } else if (compostContainerOne?.moisture >= 40 && compostContainerOne?.moisture <= 65) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "good",
+        message: `Device ${deviceNumber}: Moisture level in Compost Container One is within the optimal range (${compostContainerOne.moisture}%), which is ideal for active decomposition.`,
+      });
+    }
+
+    // --- Moisture Notifications (Compost Container Two) ---
+    if (compostContainerTwo?.moisture > 80) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "danger",
+        message: `Device ${deviceNumber}: Excessive moisture detected in Compost Container Two (${compostContainerTwo.moisture}%). This can lead to anaerobic conditions, slow down decomposition, and cause unpleasant smells. Consider adding dry materials like shredded paper or cardboard.`,
+      });
+    } else if (compostContainerTwo?.moisture < 30) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "danger",
+        message: `Device ${deviceNumber}: Very low moisture level detected in Compost Container Two (${compostContainerTwo.moisture}%). Decomposition relies on moisture; the process might significantly slow down or halt. Add some water or moist materials like fruit and vegetable scraps.`,
+      });
+    } else if (compostContainerTwo?.moisture > 65 || compostContainerTwo?.moisture < 40) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "warning",
+        message: `Device ${deviceNumber}: Moisture level in Compost Container Two is approaching suboptimal levels (${compostContainerTwo.moisture}%). The ideal moisture is like a wrung-out sponge. Monitor and adjust as needed by adding dry or wet materials.`,
+      });
+    } else if (compostContainerTwo?.moisture >= 40 && compostContainerTwo?.moisture <= 65) {
+      await Notification.create({
+        deviceId: deviceNumber,
+        level: "good",
+        message: `Device ${deviceNumber}: Moisture level in Compost Container Two is within the optimal range (${compostContainerTwo.moisture}%), which is ideal for active decomposition.`,
+      });
+    }
     // Include in the response whether data was saved to time frame
     res.status(StatusCodes.OK).json({
       message: "Data updated successfully",
@@ -87,7 +220,9 @@ const getRealTimeData = async (req, res) => {
 const getSavedTimeFrameData = async (req, res) => {
   const { deviceNumber } = req.params;
   const { timeFrame, dataType, parameter } = req.query;
-
+  
+  console.log("GETTING SAVED", deviceNumber)
+  console.log(timeFrame, dataType, parameter)
   if (!timeFrame || !["day", "week", "month"].includes(timeFrame)) {
     throw new BadRequestError("Time frame (day, week, month) is required");
   }
@@ -116,6 +251,8 @@ const getSavedTimeFrameData = async (req, res) => {
     if (!device) {
       throw new NotFoundError(`Device with number ${deviceNumber} not found`);
     }
+
+    console.log("DEVICE FOUND", device)
 
     let filteredData = [];
     const now = new Date();

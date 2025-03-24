@@ -6,8 +6,10 @@ const app = express();
 const cors = require("cors");
 const compression = require("compression"); // Added compression
 
+const adminRouter = require('./routes/adminRouter')
 const userRouter = require("./routes/userRouter");
 const deviceRouter = require("./routes/deviceRouter");
+const notifRouter = require("./routes/notifRouter")
 
 const notFound = require("./middlewares/notFound");
 const errorHandlerMiddleware = require("./middlewares/errorHandlerMiddleware");
@@ -20,8 +22,10 @@ app.use(compression()); // Add compression
 
 //Routes that do not require authentication would be placed here.
 
+app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/user", userRouter);
 app.use("/api/v1/device", deviceRouter); // ALISIN MUNA AUTHENTICATION NG USER
+app.use("/api/v1/notification", notifRouter)
 
 app.use(notFound);
 app.use(errorHandlerMiddleware);
