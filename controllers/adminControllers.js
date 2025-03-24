@@ -111,27 +111,26 @@ const adminController = {
 
   // --- User Management ---
 
-getSpecificUsersPerDevice: async (req, res) => {
-  try {
-    const deviceId = req.params.deviceId;
+  getSpecificUsersPerDevice: async (req, res) => {
+    try {
+      const deviceId = req.params.deviceId;
 
-    // Find all users whose 'devices' array contains the deviceId
-    const users = await User.find({ devices: deviceId });
+      // Find all users whose 'devices' array contains the deviceId
+      const users = await User.find({ devices: deviceId });
 
-    if (!users || users.length === 0) {
-      return res.status(200).json({ users }); // Return an empty array if no users are found for the device
+      if (!users || users.length === 0) {
+        return res.status(200).json({ users }); // Return an empty array if no users are found for the device
+      }
+
+      // Extract the usernames of the users
+      const currentUsers = users.map((user) => user.username);
+
+      res.status(200).json({ users: currentUsers });
+    } catch (error) {
+      console.error("Error fetching users for device:", error);
+      res.status(500).json({ message: "Failed to fetch users for device" });
     }
-
-    // Extract the usernames of the users
-    const currentUsers = users.map(user => user.username);
-
-    res.status(200).json({ users: currentUsers });
-
-  } catch (error) {
-    console.error("Error fetching users for device:", error);
-    res.status(500).json({ message: "Failed to fetch users for device" });
-  }
-},
+  },
   // Get all users (for admin management)
   getAllUsersForAdmin: async (req, res) => {
     try {
@@ -142,6 +141,34 @@ getSpecificUsersPerDevice: async (req, res) => {
       res
         .status(500)
         .json({ success: false, message: "Failed to fetch users" });
+    }
+  },
+
+  getTotalUserCount: async (req, res) => {
+    try {
+      const count = await User.countDocuments();
+      res.status(200).json({ totalUsers: count });
+    } catch (error) {
+      console.error("Error fetching total user count:", error);
+      res.status(500).json({ message: "Failed to fetch total user count" });
+    }
+  },
+
+  // Get the number of new users within a specified time period (e.g., last 7 days)
+  getNewUsersCount: async (req, res) => {
+    try {
+      const days = parseInt(req.query.days) || 7; // Default to 7 days if not provided
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+
+      const count = await User.countDocuments({
+        createdAt: { $gte: startDate },
+      });
+
+      res.status(200).json({ newUsers: count, period: `${days} days` });
+    } catch (error) {
+      console.error("Error fetching new user count:", error);
+      res.status(500).json({ message: "Failed to fetch new user count" });
     }
   },
 
@@ -254,12 +281,10 @@ getSpecificUsersPerDevice: async (req, res) => {
       });
       await newNotification.save();
 
-      res
-        .status(200)
-        .json({
-          success: true,
-          message: `Notification sent to ${user.username}`,
-        });
+      res.status(200).json({
+        success: true,
+        message: `Notification sent to ${user.username}`,
+      });
     } catch (error) {
       console.error("Error sending notification:", error);
       if (error.kind === "ObjectId") {
@@ -331,6 +356,226 @@ getSpecificUsersPerDevice: async (req, res) => {
       res.status(500).json({ message: "Failed to delete device" });
     }
   },
-};
+
+  getTotalDeviceCount: async (req, res) => {
+    try {
+      const count = await Device.countDocuments();
+      res.status(200).json({ totalDevices: count });
+    } catch (error) {
+      console.error("Error fetching total device count:", error);
+      res.status(500).json({ message: "Failed to fetch total device count" });
+    }
+  },
+
+  // Get the number of active devices (reporting data within the last 24 hours)
+  getActiveDeviceCount: async (req, res) => {
+    try {
+      const twentyFourHoursAgo = new Date();
+      twentyFourHoursAgo.setDate(twentyFourHoursAgo.getDate() - 1);
+
+      const count = await Device.countDocuments({
+        "realTimeData.timestamp": { $gte: twentyFourHoursAgo },
+      });
+      res.status(200).json({ activeDevices: count });
+    } catch (error) {
+      console.error("Error fetching active device count:", error);
+      res.status(500).json({ message: "Failed to fetch active device count" });
+    }
+  },
+
+  // Get the number of inactive devices (not reporting data within the last 24 hours)
+  getInactiveDeviceCount: async (req, res) => {
+    try {
+      const twentyFourHoursAgo = new Date();
+      twentyFourHoursAgo.setDate(twentyFourHoursAgo.getDate() - 1);
+
+      const count = await Device.countDocuments({
+        $or: [
+          { "realTimeData.timestamp": { $lt: twentyFourHoursAgo } },
+          { realTimeData: { $exists: false } }, // Devices that have never reported data
+        ],
+      });
+      res.status(200).json({ inactiveDevices: count });
+    } catch (error) {
+      console.error("Error fetching inactive device count:", error);
+      res
+        .status(500)
+        .json({ message: "Failed to fetch inactive device count" });
+    }
+  },
+  // Get the average battery percentage across all devices
+  getAverageBatteryPercentage: async (req, res) => {
+    try {
+      const devices = await Device.find({
+        "realTimeData.batteryPercentage": { $exists: true },
+      });
+      if (devices.length > 0) {
+        const totalBattery = devices.reduce(
+          (sum, device) => sum + device.realTimeData.batteryPercentage,
+          0
+        );
+        const averageBattery = totalBattery / devices.length;
+        console.log(averageBattery)
+        res.status(200).json({ averageBattery });
+      } else {
+        res.status(200).json({ averageBattery: 0 }); // Or handle the case with no devices reporting battery
+      }
+    } catch (error) {
+      console.error("Error fetching average battery percentage:", error);
+      res
+        .status(500)
+        .json({ message: "Failed to fetch average battery percentage" });
+    }
+  },
+
+  // Get the average solar voltage across all devices
+  getAverageSolarVoltage: async (req, res) => {
+    try {
+      const devices = await Device.find({
+        "realTimeData.solar.voltage": { $exists: true },
+      });
+      if (devices.length > 0) {
+        const totalVoltage = devices.reduce(
+          (sum, device) => sum + device.realTimeData.solar.voltage,
+          0
+        );
+        const averageSolarVoltage = totalVoltage / devices.length;
+        console.log(averageSolarVoltage)
+        res.status(200).json({ averageSolarVoltage });
+      } else {
+        res.status(200).json({ averageSolarVoltage: 0 }); // Or handle the case with no devices reporting solar voltage
+      }
+    } catch (error) {
+      console.error("Error fetching average solar voltage:", error);
+      res
+        .status(500)
+        .json({ message: "Failed to fetch average solar voltage" });
+    }
+  },
+
+  getSpecificDevicePerformance: async (req, res) => {
+    try {
+      const { deviceId } = req.params;
+  
+      const device = await Device.findOne({ deviceNumber: deviceId });
+  
+      if (!device || !device.realTimeData) {
+        return res.status(404).json({ message: 'Device not found or no real-time data available.' });
+      }
+  
+      const performanceData = {
+        batteryPercentage: device.realTimeData.batteryPercentage,
+        batteryVoltage: device.realTimeData.batteryVoltage,
+        solarVoltage: device.realTimeData.solar?.voltage,
+        solarCurrent: device.realTimeData.solar?.current,
+        solarWattage: device.realTimeData.solar?.wattage,
+        tegOneVoltage: device.realTimeData.compostContainerOne?.tegOne?.voltage,
+        tegTwoVoltage: device.realTimeData.compostContainerTwo?.tegTwo?.voltage,
+        compostOneTemperatureIn: device.realTimeData.compostContainerOne?.temperatureIn,
+        compostOneTemperatureOut: device.realTimeData.compostContainerOne?.temperatureOut,
+        compostOneMethane: device.realTimeData.compostContainerOne?.methane,
+        compostOneMoisture: device.realTimeData.compostContainerOne?.moisture,
+        compostTwoTemperatureIn: device.realTimeData.compostContainerTwo?.temperatureIn,
+        compostTwoTemperatureOut: device.realTimeData.compostContainerTwo?.temperatureOut,
+        compostTwoMethane: device.realTimeData.compostContainerTwo?.methane,
+        compostTwoMoisture: device.realTimeData.compostContainerTwo?.moisture,
+      };
+  
+      res.status(200).json({ performanceData });
+  
+    } catch (error) {
+      console.error('Error fetching specific device performance data:', error);
+      res.status(500).json({ message: 'Failed to fetch specific device performance data' });
+    }
+  },
+  getAllDevicesPerformance: async (req, res) => {
+    try {
+      const devices = await Device.find({}, 'deviceNumber realTimeData'); // Fetch only deviceNumber and realTimeData
+  
+      const devicesPerformance = devices.map(device => ({
+        deviceNumber: device.deviceNumber,
+        batteryPercentage: device.realTimeData?.batteryPercentage,
+        batteryVoltage: device.realTimeData?.batteryVoltage,
+        solarVoltage: device.realTimeData?.solar?.voltage,
+        solarCurrent: device.realTimeData?.solar?.current,
+        solarWattage: device.realTimeData?.solar?.wattage,
+        tegOneVoltage: device.realTimeData?.compostContainerOne?.tegOne?.voltage,
+        tegTwoVoltage: device.realTimeData?.compostContainerTwo?.tegTwo?.voltage,
+        compostOneTemperatureIn: device.realTimeData?.compostContainerOne?.temperatureIn,
+        compostOneTemperatureOut: device.realTimeData?.compostContainerOne?.temperatureOut,
+        compostOneMethane: device.realTimeData?.compostContainerOne?.methane,
+        compostOneMoisture: device.realTimeData?.compostContainerOne?.moisture,
+        compostTwoTemperatureIn: device.realTimeData?.compostContainerTwo?.temperatureIn,
+        compostTwoTemperatureOut: device.realTimeData?.compostContainerTwo?.temperatureOut,
+        compostTwoMethane: device.realTimeData?.compostContainerTwo?.methane,
+        compostTwoMoisture: device.realTimeData?.compostContainerTwo?.moisture,
+      }));
+  
+      res.status(200).json({ devicesPerformance });
+  
+    } catch (error) {
+      console.error('Error fetching all devices performance data:', error);
+      res.status(500).json({ message: 'Failed to fetch all devices performance data' });
+    }
+  },
+  getLatestAlerts: async (req, res) => {
+    try {
+      const latestNotifications = await Notification.find().sort({ timestamp: -1 }); // Fetch the 5 most recent notifications
+  
+      const alerts = latestNotifications.map(notification => {
+        let severity;
+        switch (notification.level) {
+          case 'warning':
+            severity = 'warning';
+            break;
+          case 'danger':
+            severity = 'danger';
+            break;
+          case 'good':
+          case 'info':
+          default:
+            severity = 'info';
+        }
+        return {
+          _id: notification._id,
+          message: notification.message,
+          severity: severity,
+          timestamp: notification.timestamp,
+          deviceId: notification.deviceId,
+        };
+      });
+  
+      res.status(200).json({ alerts: alerts });
+    } catch (error) {
+      console.error('Error fetching latest notifications:', error);
+      res.status(500).json({ message: 'Failed to fetch latest notifications' });
+    }
+  },
+  getAllDeviceNotifications: async (req, res) => {
+    try {
+      const deviceNotifications = await Notification.find({ deviceId: { $ne: null } })
+        .sort({ timestamp: -1 }); // Fetch all notifications with a deviceId, sorted by timestamp
+  
+      res.status(200).json({ notifications: deviceNotifications });
+    } catch (error) {
+      console.error('Error fetching all device notifications:', error);
+      res.status(500).json({ message: 'Failed to fetch device notifications' });
+    }
+  },
+  
+  deleteNotification: async (req, res) => {
+    const notificationId = req.params.id;
+    try {
+      const deletedNotification = await Notification.findByIdAndDelete(notificationId);
+      if (!deletedNotification) {
+        return res.status(404).json({ message: 'Notification not found' });
+      }
+      res.status(200).json({ message: 'Notification deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      res.status(500).json({ message: 'Failed to delete notification' });
+    }
+  },
+}
 
 module.exports = adminController;
