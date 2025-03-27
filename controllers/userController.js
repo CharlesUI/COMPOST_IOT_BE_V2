@@ -8,7 +8,7 @@ const {
 } = require("../errors/ErrorClass");
 
 const register = async (req, res) => {
-  const { username, email, password } = req.body;
+  const { username, email, title,  password } = req.body;
 
   console.log("Register body", req.body);
 
@@ -18,7 +18,7 @@ const register = async (req, res) => {
       throw new BadRequestError("User with this email already exists");
     }
 
-    const user = await User.create({ username, email, password });
+    const user = await User.create({ username, email, title, password });
     const token = user.createToken();
 
     res.status(StatusCodes.CREATED).json({
@@ -26,6 +26,7 @@ const register = async (req, res) => {
       _id: user._id,
       username: user.username,
       email: user.email,
+      title: user.title,
     });
   } catch (error) {
     console.error("Registration error:", error);
@@ -62,11 +63,14 @@ const login = async (req, res) => {
 
   const token = user.createToken();
 
+  console.log("USER TO LOG", user)
+
   res.status(StatusCodes.OK).json({
     token,
     _id: user._id,
     username: user.username,
     email: user.email,
+    title: user.title,
     devices: user.devices,
   });
 };

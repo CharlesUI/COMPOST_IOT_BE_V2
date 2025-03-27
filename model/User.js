@@ -14,6 +14,7 @@ const userSchema = new mongoose.Schema(
         "Please provide a valid email",
       ],
     },
+    title: { type : String, required: true },
     password: { type: String, required: true },
     devices: [{ type: String }], // Store device numbers directly
   },

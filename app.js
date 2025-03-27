@@ -34,7 +34,7 @@ const port = process.env.PORT || 5000;
 
 const start = async () => {
   try {
-    await connectDb(process.env.MONGO_URI || process.env.MONGO_LOCAL); // Use MONGO_URI for production
+    await connectDb(process.env.MONGO_LOCAL); // Use MONGO_URI for production
     app.listen(port, console.log(`Server listening on port ${port}`));
   } catch (error) {
     console.error("Database connection error:", error);
