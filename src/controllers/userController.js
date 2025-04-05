@@ -42,6 +42,22 @@ const register = async (req, res) => {
   }
 };
 
+const isLoggedIn = async (req, res) => {
+  // req.user is set by authenticateToken middleware
+  if (req.user) {
+    res.json({ 
+      valid: true, 
+      user: {
+        _id: req.user._id,
+        username: req.user.username,
+        email: req.user.email
+      }
+    });
+  } else {
+    res.status(401).json({ valid: false });
+  }
+};
+
 const login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -191,6 +207,7 @@ const clearDevices = async (req, res) => {
 
 module.exports = {
   register,
+  isLoggedIn,
   login,
   getUsers,
   deleteUser,

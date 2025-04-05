@@ -69,6 +69,7 @@ const start = async () => {
         ? process.env.MONGO_URI
         : process.env.MONGO_LOCAL;
     await connectDb(mongoUri);
+    console.log(process.env.NODE_ENV)
     console.log("Database connected");
     // No app.listen() here for Vercel
   } catch (error) {

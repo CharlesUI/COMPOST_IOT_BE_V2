@@ -5,6 +5,7 @@ const authenticateUser = require("../middlewares/authenticateUser");
 
 const {
   register,
+  isLoggedIn,
   login,
   getUsers,
   deleteUser,
@@ -16,6 +17,7 @@ const {
 // Register and Login (no authentication required)
 router.route("/register").post(register);
 router.route("/login").post(login);
+router.route("/isLoggedIn").post(isLoggedIn)
 
 // Routes requiring authentication (using authenticateUser middleware in app.js)
 router.route("/").get(getUsers); // Get all users (admin only?)

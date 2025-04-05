@@ -50,6 +50,8 @@ const updateRealTimeData = async (req, res) => {
       shouldSaveTimeFrame = timeDiffHours >= 3;
     }
 
+
+    
     // If criteria met, also save to savedTimeFrameData
     if (shouldSaveTimeFrame) {
       device.savedTimeFrameData.push(sensorData);
@@ -266,7 +268,7 @@ const getSavedTimeFrameData = async (req, res) => {
       timeInterval = 3 * 60 * 60 * 1000;
       timeRange = 7 * 24 * 60 * 60 * 1000;
     } else {
-      timeInterval = 6 * 60 * 60 * 1000; // 6 hours interval for month
+      timeInterval = 8 * 60 * 60 * 1000; // 8 hours interval for month
       timeRange = 30 * 24 * 60 * 60 * 1000;
     }
 
