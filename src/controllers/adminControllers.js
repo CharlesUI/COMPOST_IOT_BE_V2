@@ -98,7 +98,7 @@ const adminController = {
       // Generate JWT token
       const token = admin.createToken();
 
-      console.log(admin)
+      console.log(admin);
 
       res.status(200).json({
         success: true,
@@ -307,6 +307,74 @@ const adminController = {
       res
         .status(500)
         .json({ success: false, message: "Failed to send notification" });
+    }
+  },
+
+  sendNotificationToDevice: async (req, res) => {
+    try {
+      console.log(req.body);
+      console.log(req.params);
+      const { deviceNumber } = req.params;
+      const { message, deviceId } = req.body;
+      const { level = "info" } = req.body;
+
+      // (Optional) Find the device in the database
+      // const device = await Device.findOne({ deviceNumber: deviceNumber });
+      // if (!device) {
+      //   return res.status(404).json({ success: false, message: "Device not found" });
+      // }
+
+      // Implement the logic to send the notification to the device
+      // This could involve using a push notification service (like FCM),
+      // sending a message via a WebSocket connection, etc.
+      console.log(
+        `Sending notification to device ${deviceId}: ${message} (Level: ${level})`
+      );
+
+      // (Optional) Log the notification
+      const newNotification = new Notification({
+        deviceId: deviceId, // Or potentially device._id if you found the device
+        message: message,
+        level: level,
+        type: "device", // Indicate that this is a device notification
+      });
+
+      console.log("NEW NOTIFICATION", newNotification);
+      await newNotification.save();
+
+      res.status(200).json({
+        success: true,
+        message: `Notification sent to device ${deviceNumber}`,
+      });
+    } catch (error) {
+      console.error("Error sending notification to device:", error);
+      // You might want to add specific error handling for different scenarios
+      res
+        .status(500)
+        .json({
+          success: false,
+          message: "Failed to send notification to device",
+        });
+    }
+  },
+
+  // Controller function to clear all notifications
+  clearAllNotifications: async (req, res) => {
+    try {
+      // Delete all documents from the Notification collection
+      const deleteResult = await Notification.deleteMany({});
+
+      // Send a success response
+      res.status(200).json({
+        message: "Successfully cleared all notifications.",
+        deletedCount: deleteResult.deletedCount,
+      });
+    } catch (error) {
+      console.error("Error clearing notifications:", error);
+      res.status(500).json({
+        message: "Failed to clear notifications.",
+        error: error.message,
+      });
     }
   },
 
@@ -547,14 +615,13 @@ const adminController = {
   getLatestAlerts: async (req, res) => {
     try {
       // Fetch all existing device IDs first
-      const existingDeviceNumbers = await Device.distinct('deviceNumber');
-  
+      const existingDeviceNumbers = await Device.distinct("deviceNumber");
+
       // Fetch the latest notifications only for existing devices
       const latestNotifications = await Notification.find({
         deviceId: { $in: existingDeviceNumbers },
-      })
-        .sort({ timestamp: -1 });
-  
+      }).sort({ timestamp: -1 });
+
       const alerts = latestNotifications.map((notification) => {
         let severity;
         switch (notification.level) {
@@ -577,26 +644,32 @@ const adminController = {
           deviceId: notification.deviceId,
         };
       });
-  
+
       res.status(200).json({ alerts: alerts });
     } catch (error) {
-      console.error("Error fetching latest alerts for existing devices:", error);
+      console.error(
+        "Error fetching latest alerts for existing devices:",
+        error
+      );
       res.status(500).json({ message: "Failed to fetch latest alerts" });
     }
   },
   getAllDeviceNotifications: async (req, res) => {
     try {
       // Fetch all existing device IDs first
-      const existingDeviceNumbers = await Device.distinct('deviceNumber');
-  
+      const existingDeviceNumbers = await Device.distinct("deviceNumber");
+
       // Fetch notifications only for existing devices
       const deviceNotifications = await Notification.find({
         deviceId: { $in: existingDeviceNumbers },
       }).sort({ timestamp: -1 }); // Fetch notifications with deviceId in the existingDeviceIds array, sorted by timestamp
-  
+
       res.status(200).json({ notifications: deviceNotifications });
     } catch (error) {
-      console.error("Error fetching device notifications for existing devices:", error);
+      console.error(
+        "Error fetching device notifications for existing devices:",
+        error
+      );
       res.status(500).json({ message: "Failed to fetch device notifications" });
     }
   },

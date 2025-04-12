@@ -2,8 +2,8 @@ const mongoose = require("mongoose");
 
 const notificationSchema = new mongoose.Schema(
   {
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true }, // Added userId
-    deviceId: { type: String, index: true }, // Made deviceId optional
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Added userId
+    deviceId: { type: String },
     level: {
       type: String,
       enum: ["info", "good", "warning", "danger"],

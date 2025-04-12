@@ -7,6 +7,7 @@ const {
     markNotificationAsRead,
     getNotificationsForUser,
     getNotificationsForDevice,
+    deleteNotificationsViaBody,
 } = require('../controllers/notifController');
 
 // Routes
@@ -22,6 +23,8 @@ router.post('/', createNotification); // Or /device/:deviceNumber
 
 // Delete a specific notification using its ID
 router.delete('/:notificationId', deleteNotification);
+
+router.delete('/deleteAll/:deviceNumber/:userId', deleteNotificationsViaBody);
 
 // Mark a specific notification as read using its ID
 router.patch('/:notificationId/read', markNotificationAsRead);

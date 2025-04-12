@@ -12,6 +12,7 @@ router.get('/users/:id', adminController.getUser);
 router.put('/users/:id', adminController.updateUser);
 router.delete('/users/:id', adminController.deleteUser);
 router.post('/users/:id/notify', adminController.sendNotificationToUser);
+router.post('/device/:id/notify', adminController.sendNotificationToDevice);
 router.get('/users/specific/:deviceId', adminController.getSpecificUsersPerDevice)
 
 // Route to get the total number of users
@@ -36,7 +37,10 @@ router.get('/dashboard/performance/devices/all', adminController.getAllDevicesPe
 router.get('/dashboard/alerts/latest', adminController.getLatestAlerts);
 // Route for All Notifications
 router.get('/notifications/all', adminController.getAllDeviceNotifications);
+
 router.delete('/notifications/:id', adminController.deleteNotification);
+
+router.delete('/clearAllNotifications', adminController.clearAllNotifications)
 
 
 
