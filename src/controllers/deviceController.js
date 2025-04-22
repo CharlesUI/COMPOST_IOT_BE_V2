@@ -86,25 +86,19 @@ const updateRealTimeData = async (req, res) => {
     }
 
     // --- Methane Notifications (Compost Container One) ---
-    if (compostContainerOne?.methane > 70) {
+    if (compostContainerOne?.methane >= 1000) {
       await Notification.create({
         deviceId: deviceNumber,
         level: "danger",
         message: `Device ${deviceNumber}: High methane level detected in Compost Container One (${compostContainerOne.methane}%). This often indicates anaerobic conditions due to excessive moisture or compaction, potentially leading to foul odors. Turning the compost pile might be necessary.`,
       });
-    } else if (compostContainerOne?.methane > 50) {
+    } else if (compostContainerOne?.methane >= 500) {
       await Notification.create({
         deviceId: deviceNumber,
         level: "warning",
         message: `Device ${deviceNumber}: Elevated methane level in Compost Container One (${compostContainerOne.methane}%). This could suggest an imbalance in the composting process. Ensure good airflow and consider adding more carbon-rich materials.`,
       });
-    } else if (compostContainerOne?.methane < 5) {
-      await Notification.create({
-        deviceId: deviceNumber,
-        level: "warning",
-        message: `Device ${deviceNumber}: Low methane level in Compost Container One (${compostContainerOne.methane}%) might indicate the composting process has significantly slowed down or is too dry. Check moisture levels and material balance.`,
-      });
-    } else if (compostContainerOne?.methane >= 5 && compostContainerOne?.methane <= 40) {
+    } else if (compostContainerOne?.methane >= 5 && compostContainerOne?.methane <= 100) {
       await Notification.create({
         deviceId: deviceNumber,
         level: "good",
@@ -113,25 +107,19 @@ const updateRealTimeData = async (req, res) => {
     }
 
     // --- Methane Notifications (Compost Container Two) ---
-    if (compostContainerTwo?.methane > 70) {
+    if (compostContainerTwo?.methane >= 1000) {
       await Notification.create({
         deviceId: deviceNumber,
         level: "danger",
         message: `Device ${deviceNumber}: High methane level detected in Compost Container Two (${compostContainerTwo.methane}%). This often indicates anaerobic conditions due to excessive moisture or compaction, potentially leading to foul odors. Turning the compost pile might be necessary.`,
       });
-    } else if (compostContainerTwo?.methane > 50) {
+    } else if (compostContainerTwo?.methane >= 500) {
       await Notification.create({
         deviceId: deviceNumber,
         level: "warning",
         message: `Device ${deviceNumber}: Elevated methane level in Compost Container Two (${compostContainerTwo.methane}%). This could suggest an imbalance in the composting process. Ensure good airflow and consider adding more carbon-rich materials.`,
       });
-    } else if (compostContainerTwo?.methane < 5) {
-      await Notification.create({
-        deviceId: deviceNumber,
-        level: "warning",
-        message: `Device ${deviceNumber}: Low methane level in Compost Container Two (${compostContainerTwo.methane}%) might indicate the composting process has significantly slowed down or is too dry. Check moisture levels and material balance.`,
-      });
-    } else if (compostContainerTwo?.methane >= 5 && compostContainerTwo?.methane <= 40) {
+    } else if (compostContainerTwo?.methane >= 5 && compostContainerTwo?.methane <= 100) {
       await Notification.create({
         deviceId: deviceNumber,
         level: "good",
